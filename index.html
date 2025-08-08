@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>NIO Summer'25 超级抽奖</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;padding:20px;background:#f5f7fa;display:flex;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif}
+.card{max-width:400px;width:100%;background:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.08);overflow:hidden}
+.banner{width:100%;display:block;height:auto}
+.content{padding:25px 30px 30px}
+h2{margin-top:0;text-align:center}
+label{display:block;margin-bottom:6px;font-weight:bold}
+input{width:100%;padding:8px 10px;border:1px solid #cfd8e3;border-radius:4px;font-size:16px;box-sizing:border-box}
+button{margin-top:16px;width:100%;padding:10px 0;border:none;border-radius:4px;background:#3f51b5;color:#fff;font-size:16px;cursor:pointer}
+button:disabled{background:#c0c8e6;cursor:not-allowed}
+#result{margin-top:20px;font-size:18px;font-weight:bold;text-align:center}
+#result.success{color:#27ae60}
+#result.fail{color:#e74c3c}
+#submitBtn{background:#27ae60}
+</style>
+</head>
+<body>
+<div class="card">
+<img class="banner" src="banner.jpeg" alt="NioSummer'25">
+<div class="content">
+  <h2>NIO Summer'25 超级抽奖</h2>
+  <label>请输入下单手机号：</label>
+  <input id="phoneInput" type="text" placeholder="11位手机号" maxlength="11">
+  <button id="drawBtn" onclick="handleInput()">立即抽奖！</button>
+  <div id="result" style="display:none;"></div>
+  <button id="submitBtn" style="display:none;margin-top:16px" onclick="goToForm()">填写领奖信息</button>
+</div>
+</div>
+
+<script>
+const DEADLINE  = new Date('2025-08-30 23:59:59');
+const FEISHU_FORM_URL = 'https://nio.feishu.cn/share/base/form/shrcn61DZYEMObb4QDUaMma813d';
+const SEED      = 20250805;
+const usedPhones = new Set(JSON.parse(localStorage.getItem('usedPhones') || '[]'));
+
+/* ===== 奖品池（总量 300+） ===== */
+const PRIZE_POOL = [
+  { name:'【7月冲刺享整年免费换电券】', stock:3 },
+  { name:'【蔚来悦享出行兑换券】', stock:31 },
+  { name:'【NIO SUMMER套票】', stock:30 },
+  { name:'【NIO LIFE行李箱】', stock:17 },
+  { name:'【米家扫地机器人】', stock:1 },
+  { name:'【星巴克兑换券】', stock:146 },
+  { name:'【5张免费换电券】', stock:100 },
+  { name:'【蛇年ip马克杯】', stock:382 }
+];
+
+/* ===== 手机号列表（全部 160+ 条） ===== */
+const PHONE_LIST = [
+  '15557051995','18657467185','15067208178','18758120123','13758226714',
+  '18367807916','13757184147','15968350271','13282443134','15658153888',
+  '18768278947','13777569330','13666685788','17606539850','18049406878',
+  '13906507540','15868406641','13968018299','18868114335','18858149158',
+  '17555186493','13735847625','19357515025','15333531580','17805707822',
+  '18018591190','15906615316','13858100196','15968856855','13675734703',
+  '18755056388','13757135731','15957206522','18857121228','15925685537',
+  '15258887848','13958792466','18705873211','15858501701','15158064545',
+  '13868268027','13567841492','15868843893','19157692726','19967436713',
+  '19906798578','15005813882','13968188577','18858395365','18872497030',
+  '15868824535','13511219089','13606508905','15372215755','15825528214',
+  '18810538269','13567242277','18314866585','13709234665','13083965603',
+  '18362541187','18067982553','15957115342','18356926799','13216707007',
+  '18857860072','18106531983','17364054383','18006728031','13588056914',
+  '13958128886','15157140383','19374193090','15157111822','13675853731',
+  '15867154771','18958185001','13957176227','18757230564','15568506527',
+  '13645720800','13588766164','15067201124','18767233275','18606532329',
+  '15957582078','13758111303','15616020525','18968075779','13588147693',
+  '15967192695','13989461585','13588816772','13634117120','13868023141',
+  '13575512208','18767006605','15850695361','13357192547','15636395666',
+  '15122865275','18157189569','15757166465','15868113241','18868806548',
+  '13867120682','17858856650','13735510058','18362963313','15968213620',
+  '17757191909','15857359299','15167196908','13905176007','15168488215',
+  '15062555378','17706817352','18066447347','13588282198','17637422914',
+  '15623302790','17606518052','18248496800','13185235600','13587252848',
+  '13616508492','13757299797','18057176347','17816537511','19157790336',
+  '18345717771','15988893375','18847159741','13588050190','17326073743',
+  '13968181941','15205735565','13805709133','13588708431','17347989743',
+  '13666649316','18681567247','17367105986','13968113370','18857880027',
+  '15988135937','18557531382','19012881230','13738013197','15717989751',
+  '15990097142','13735851079','18171496145','15268146839','13958173694',
+  '18106521699','13503827553','18201822176','17815509879','13968041557',
+  '18329182299','18157659627','13738280898','17706715699','18200316564',
+  '15088398116','18555086509','18558693276','15857240116','17740632422',
+  '13588221284','13819108059','18805823836','18167132259','13587019986',
+  '17367113303','18969112951','17857355525','17398076238','13732239318',
+  '18868363805','15705723166','18684598834','18868820783','19705060725',
+  '15267456089','19518581150','13511251660','18906525417','15824333113',
+  '15382310475','18368137681','18858377619','18057125357','18635896849',
+  '15267080664','18814843452','13805714282','18067627757','18768237540'
+];
+
+// 生成奖品数组（按库存展开）
+let prizes = [];
+PRIZE_POOL.forEach(p => {
+  for (let i = 0; i < p.stock; i++) prizes.push(p.name);
+});
+
+// 洗牌
+const shuffled = shuffle([...prizes], SEED);
+
+// 手机号→奖品循环映射
+const PRIZE_MAP = {};
+PHONE_LIST.forEach((phone, idx) => {
+  PRIZE_MAP[phone] = shuffled[idx % shuffled.length];
+});
+
+/* ===== 业务逻辑 ===== */
+function isExpired() { return Date.now() > DEADLINE.getTime(); }
+
+function handleInput() {
+  const phone = document.getElementById('phoneInput').value.trim();
+  const drawBtn   = document.getElementById('drawBtn');
+  const resultBox = document.getElementById('result');
+  const submitBtn = document.getElementById('submitBtn');
+
+  resultBox.style.display = 'none';
+  submitBtn.style.display = 'none';
+
+  if (!/^\d{11}$/.test(phone)) { showMessage('请输入正确的11位手机号', false); return; }
+  if (!PRIZE_MAP[phone]) { showMessage('手机号未在活动范围内', false); return; }
+
+  drawBtn.style.display = 'none';
+  const prize = PRIZE_MAP[phone];
+  const text  = usedPhones.has(phone) ? `已抽过奖：${prize}` : `恭喜获得：${prize}`;
+  showMessage(text, true);
+  submitBtn.style.display = 'block';
+
+  if (!usedPhones.has(phone)) {
+    usedPhones.add(phone);
+    localStorage.setItem('usedPhones', JSON.stringify([...usedPhones]));
+  }
+}
+
+function showMessage(text, success) {
+  const box = document.getElementById('result');
+  box.textContent = text;
+  box.className   = success ? 'success' : 'fail';
+  box.style.display = 'block';
+}
+
+function goToForm() {
+  window.open(FEISHU_FORM_URL, '_blank');
+}
+
+/* ===== 洗牌算法 ===== */
+function shuffle(arr, seed) {
+  let rng = seed;
+  const random = () => {
+    rng = (rng * 9301 + 49297) % 233280;
+    return rng / 233280;
+  };
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+</script>
+</body>
+</html>
